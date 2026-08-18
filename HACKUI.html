@@ -1,0 +1,237 @@
+from pathlib import Path
+
+html = r'''<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Machine Breach Alarm</title>
+<style>
+  :root {
+    --red: #ff2038;
+    --red-dark: #8f0715;
+    --bg: #07090d;
+    --panel: #10141b;
+    --line: #2a313d;
+    --text: #f5f7fa;
+    --muted: #87909d;
+    --amber: #ffb020;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
+    background:
+      radial-gradient(circle at 50% 15%, rgba(255,32,56,.13), transparent 35%),
+      linear-gradient(135deg, #050609, #0b0e13 55%, #06080b);
+    color: var(--text);
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+  }
+
+  .scanlines {
+    position: fixed; inset: 0; pointer-events: none; opacity: .08;
+    background: repeating-linear-gradient(
+      to bottom, transparent 0, transparent 3px, #fff 4px
+    );
+  }
+
+  .shell {
+    width: min(1050px, 94vw);
+    border: 1px solid #3a1118;
+    background: rgba(10,12,17,.94);
+    box-shadow: 0 0 80px rgba(255, 20, 45, .13);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+
+  header {
+    height: 64px;
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--line);
+    background: #0c1016;
+  }
+
+  .brand { display:flex; align-items:center; gap:12px; font-weight:800; letter-spacing:.08em; }
+  .brand-mark {
+    width: 12px; height: 12px; border-radius: 50%;
+    background: var(--red); box-shadow: 0 0 18px var(--red);
+    animation: blink 1s infinite;
+  }
+  .status {
+    color: #ff6675; font-size: 12px; font-weight: 800; letter-spacing:.14em;
+    padding: 7px 10px; border: 1px solid #671824; background:#220b10; border-radius: 5px;
+  }
+
+  main { padding: 38px; }
+
+  .alarm {
+    display: grid;
+    grid-template-columns: 170px 1fr;
+    gap: 34px;
+    align-items: center;
+    padding-bottom: 32px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .siren {
+    width: 150px; height: 150px; margin: auto;
+    border-radius: 50%;
+    border: 2px solid var(--red);
+    display:grid; place-items:center;
+    background: radial-gradient(circle, #ff3048 0 8%, #520914 9% 38%, #18080c 39% 100%);
+    box-shadow: 0 0 35px rgba(255,32,56,.5), inset 0 0 30px rgba(255,32,56,.4);
+    animation: pulse 1s infinite;
+    font-size: 58px;
+  }
+
+  .eyebrow { color:#ff6675; font-size:12px; letter-spacing:.2em; font-weight:900; }
+  h1 { margin: 8px 0 10px; font-size: clamp(34px, 5vw, 64px); line-height: .95; letter-spacing:-.04em; }
+  .message { color:#aab2bd; max-width:650px; line-height:1.6; }
+
+  .grid {
+    margin-top: 28px;
+    display:grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+  }
+
+  .card {
+    border:1px solid var(--line);
+    background: linear-gradient(180deg, #11161e, #0c1016);
+    border-radius:8px; padding:17px;
+  }
+  .label { color:var(--muted); font-size:11px; letter-spacing:.14em; text-transform:uppercase; }
+  .value { margin-top:8px; font-size:20px; font-weight:800; }
+  .danger { color:#ff4a5b; }
+  .warning { color:var(--amber); }
+
+  .events {
+    margin-top: 28px;
+    border:1px solid var(--line);
+    border-radius:8px;
+    overflow:hidden;
+  }
+  .events-title {
+    padding:13px 16px; background:#0d1218; color:#9ba5b1;
+    font-size:11px; font-weight:800; letter-spacing:.16em;
+  }
+  .event {
+    display:grid; grid-template-columns: 110px 1fr auto;
+    gap:18px; padding:13px 16px; border-top:1px solid #202630;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size:12px;
+  }
+  .event .time { color:#65707e; }
+  .event .msg { color:#d4d9df; }
+  .tag { color:#ff5363; }
+
+  .actions {
+    margin-top:24px; display:flex; gap:12px; justify-content:flex-end;
+  }
+  button {
+    border:1px solid #3b424d; background:#151a22; color:#e8ebef;
+    padding:12px 18px; border-radius:6px; cursor:pointer; font-weight:800;
+  }
+  button:hover { background:#202630; }
+  .ack {
+    background:var(--red); border-color:var(--red); color:#fff;
+    box-shadow:0 0 20px rgba(255,32,56,.22);
+  }
+  .ack:hover { background:#e9182e; }
+
+  .muted { color:var(--muted); font-size:12px; }
+
+  @keyframes pulse {
+    0%,100% { transform:scale(1); filter:brightness(1); }
+    50% { transform:scale(1.04); filter:brightness(1.35); }
+  }
+  @keyframes blink { 50% { opacity:.25; } }
+
+  body.alarm-mode { animation: alarmFlash .7s infinite; }
+  @keyframes alarmFlash {
+    0%, 100% { box-shadow: inset 0 0 0 transparent; }
+    50% { box-shadow: inset 0 0 80px rgba(255,0,30,.05); }
+  }
+
+  @media (max-width: 720px) {
+    main { padding: 24px; }
+    .alarm { grid-template-columns: 1fr; text-align:center; }
+    .grid { grid-template-columns:1fr; }
+    .event { grid-template-columns: 75px 1fr; }
+    .tag { display:none; }
+  }
+</style>
+</head>
+<body class="alarm-mode">
+<div class="scanlines"></div>
+
+<section class="shell" aria-label="Machine breach alarm interface">
+  <header>
+    <div class="brand"><span class="brand-mark"></span>SECUREMESH // CONTROL</div>
+    <div class="status">● CRITICAL ALERT</div>
+  </header>
+
+  <main>
+    <section class="alarm">
+      <div class="siren" aria-hidden="true">⚠</div>
+      <div>
+        <div class="eyebrow">PERIMETER INTEGRITY FAILURE</div>
+        <h1>MACHINE BREACHED</h1>
+        <p class="message">
+          Unauthorized access has been detected on the protected machine interface.
+          Isolate the affected system and verify physical access before restoring normal operation.
+        </p>
+      </div>
+    </section>
+
+    <section class="grid">
+      <div class="card"><div class="label">Machine ID</div><div class="value">MX-0471</div></div>
+      <div class="card"><div class="label">Threat Level</div><div class="value danger">CRITICAL</div></div>
+      <div class="card"><div class="label">Detected</div><div class="value">15:19:42 IST</div></div>
+      <div class="card"><div class="label">Access Point</div><div class="value">DOOR-03</div></div>
+      <div class="card"><div class="label">System State</div><div class="value danger">LOCKDOWN</div></div>
+      <div class="card"><div class="label">Response</div><div class="value warning">REQUIRED</div></div>
+    </section>
+
+    <section class="events">
+      <div class="events-title">SECURITY EVENT LOG</div>
+      <div class="event"><span class="time">15:19:42</span><span class="msg">Integrity sensor triggered</span><span class="tag">ALERT</span></div>
+      <div class="event"><span class="time">15:19:43</span><span class="msg">Access boundary violation confirmed</span><span class="tag">BREACH</span></div>
+      <div class="event"><span class="time">15:19:44</span><span class="msg">Automatic machine isolation enabled</span><span class="tag">LOCKED</span></div>
+    </section>
+
+    <div class="actions">
+      <button onclick="muteAlarm(this)">Mute Alarm</button>
+      <button onclick="acknowledge(this)" class="ack">Acknowledge Incident</button>
+    </div>
+    <p id="response" class="muted" style="text-align:right;"></p>
+  </main>
+</section>
+
+<script>
+function muteAlarm(button) {
+  document.body.classList.remove('alarm-mode');
+  button.textContent = 'Alarm Muted';
+  document.getElementById('response').textContent = 'Audible alarm muted locally. Visual alert remains active.';
+}
+function acknowledge(button) {
+  button.textContent = 'Incident Acknowledged';
+  button.disabled = true;
+  document.getElementById('response').textContent =
+    'Incident acknowledged by local operator. Machine remains in lockdown.';
+}
+</script>
+</body>
+</html>
+'''
+
+path = Path("/mnt/data/machine_breach_alarm.html")
+path.write_text(html, encoding="utf-8")
+print(f"Created: {path}")
